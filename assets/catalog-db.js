@@ -11,6 +11,8 @@
   const STATIC_PRODUCTS_JSON = 'database/products.json';
   const STATIC_CATALOG_JSON = 'database/catalog.json';
 
+  const EMBEDDED_CATALOG = window.FAMOZO_STATIC_CATALOG || null;
+
   // Единые цвета фонов секций каталога.
   // Новые категории из админки автоматически получают эти цвета,
   // потому что секции строятся динамически из SQLite.
@@ -217,17 +219,30 @@
       let categories = [];
       let products = [];
       try {
-        const [categoriesData, productsData] = await Promise.all([
-          fetchStaticJson(STATIC_CATEGORIES_JSON),
-          fetchStaticJson(STATIC_PRODUCTS_JSON)
-        ]);
-        categories = Array.isArray(categoriesData) ? categoriesData : [];
-        products = Array.isArray(productsData) ? productsData : [];
+        if (EMBEDDED_CATALOG && Array.isArray(EMBEDDED_CATALOG.categories) && Array.isArray(EMBEDDED_CATALOG.products)) {
+          categories = EMBEDDED_CATALOG.categories;
+          products = EMBEDDED_CATALOG.products;
+        } else {
+          const [categoriesData, productsData] = await Promise.all([
+            fetchStaticJson(STATIC_CATEGORIES_JSON),
+            fetchStaticJson(STATIC_PRODUCTS_JSON)
+          ]);
+          categories = Array.isArray(categoriesData) ? categoriesData : [];
+          products = Array.isArray(productsData) ? productsData : [];
+        }
       } catch (primaryError) {
         console.warn('Failed to load separate static JSON files, trying combined catalog.json', primaryError);
-        const catalog = await fetchStaticJson(STATIC_CATALOG_JSON);
-        categories = Array.isArray(catalog.categories) ? catalog.categories : [];
-        products = Array.isArray(catalog.products) ? catalog.products : [];
+        try {
+          const catalog = await fetchStaticJson(STATIC_CATALOG_JSON);
+          categories = Array.isArray(catalog.categories) ? catalog.categories : [];
+          products = Array.isArray(catalog.products) ? catalog.products : [];
+        } catch (fallbackError) {
+          console.warn('Falling back to embedded catalog data', fallbackError);
+          if (EMBEDDED_CATALOG && Array.isArray(EMBEDDED_CATALOG.categories) && Array.isArray(EMBEDDED_CATALOG.products)) {
+            categories = EMBEDDED_CATALOG.categories;
+            products = EMBEDDED_CATALOG.products;
+          }
+        }
       }
 
       if (categoryLinksRow) {
