@@ -7,12 +7,23 @@
   }
 
   const WHATSAPP_NUMBER = '77775479888';
+  const STATIC_CATEGORIES_JSON = 'database/categories.json';
+  const STATIC_PRODUCTS_JSON = 'database/products.json';
+  const STATIC_CATALOG_JSON = 'database/catalog.json';
 
   // Единые цвета фонов секций каталога.
   // Новые категории из админки автоматически получают эти цвета,
   // потому что секции строятся динамически из SQLite.
   const CATALOG_LIGHT_BG = '#ffeada';
   const CATALOG_DARK_BG = '#a55959';
+
+  async function fetchStaticJson(url) {
+    const response = await fetch(url, { cache: 'no-store' });
+    if (!response.ok) {
+      throw new Error('Static JSON load failed for ' + url + ' with status ' + response.status);
+    }
+    return response.json();
+  }
 
   function cleanText(text) {
     return text ? text.replace(/\s+/g, ' ').trim() : '';
@@ -203,14 +214,21 @@
     const categoryLinksRow = document.querySelector('#features013-a .row.mbr-section-content');
     const area = buildDynamicArea();
     try {
-      const [categoriesRes, productsRes] = await Promise.all([
-        fetch('/api/categories', { cache: 'no-store' }),
-        fetch('/api/products', { cache: 'no-store' })
-      ]);
-      if (!categoriesRes.ok) throw new Error('Categories API returned ' + categoriesRes.status);
-      if (!productsRes.ok) throw new Error('Products API returned ' + productsRes.status);
-      const categories = await categoriesRes.json();
-      const products = await productsRes.json();
+      let categories = [];
+      let products = [];
+      try {
+        const [categoriesData, productsData] = await Promise.all([
+          fetchStaticJson(STATIC_CATEGORIES_JSON),
+          fetchStaticJson(STATIC_PRODUCTS_JSON)
+        ]);
+        categories = Array.isArray(categoriesData) ? categoriesData : [];
+        products = Array.isArray(productsData) ? productsData : [];
+      } catch (primaryError) {
+        console.warn('Failed to load separate static JSON files, trying combined catalog.json', primaryError);
+        const catalog = await fetchStaticJson(STATIC_CATALOG_JSON);
+        categories = Array.isArray(catalog.categories) ? catalog.categories : [];
+        products = Array.isArray(catalog.products) ? catalog.products : [];
+      }
 
       if (categoryLinksRow) {
         categoryLinksRow.innerHTML = categories.length
@@ -224,7 +242,7 @@
       keepForcingCatalogColorsV9();
       bindWhatsAppButtons();
     } catch (error) {
-      area.innerHTML = '<section class="features3"><div class="container"><div class="col-12 text-center mbr-fonts-style display-7">Не удалось загрузить каталог. Запустите сайт через <strong>python server.py</strong>, а не двойным кликом по HTML.</div></div></section>';
+      area.innerHTML = '<section class="features3"><div class="container"><div class="col-12 text-center mbr-fonts-style display-7">Не удалось загрузить каталог. Убедитесь, что файлы <strong>database/categories.json</strong> и <strong>database/products.json</strong> доступны.</div></div></section>';
       console.error(error);
     }
   }
